@@ -62,8 +62,8 @@ runs:
 
         echo "Comparing $BASE_REF...$HEAD_REF"
 
-        # Get list of changed files that are Bazel files
-        git diff --name-only --diff-filter=ACMRT "$BASE_REF" "$HEAD_REF" | \
+        # Get list of changed and added files that are Bazel files (A=added, M=modified)
+        git diff --name-only --diff-filter=AM "$BASE_REF" "$HEAD_REF" | \
           grep -E '(^|/)((BUILD|WORKSPACE|MODULE)(\.bazel)?|.*\.bzl)$' > /tmp/bazel_files.txt || true
 
         if [ -s /tmp/bazel_files.txt ]; then
