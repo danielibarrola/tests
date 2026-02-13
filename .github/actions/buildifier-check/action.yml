@@ -76,7 +76,7 @@ runs:
             BASE_REF="${{ github.event.before }}"
           fi
           HEAD_REF="${{ github.sha }}"
-
+  
           echo "Comparing $BASE_REF...$HEAD_REF"
 
           # Get list of changed and added files that are Bazel files (A=added, M=modified)
