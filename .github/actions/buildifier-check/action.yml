@@ -51,19 +51,19 @@ runs:
 
         # Determine the base ref to compare against
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          # For PRs, use the merge base between the base branch and head
-          BASE_REF="origin/${{ github.event.pull_request.base.ref }}"
-          HEAD_REF="HEAD"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
-          # Ensure we have the base branch
-          git fetch origin "${{ github.event.pull_request.base.ref }}"
+          echo "PR base: $BASE_SHA"
+          echo "PR head: $HEAD_SHA"
 
-          # Use merge-base to find the common ancestor
-          MERGE_BASE=$(git merge-base "$BASE_REF" "$HEAD_REF")
-          echo "Comparing merge base $MERGE_BASE...HEAD"
+          # Ensure both SHAs exist locally (shallow-safe)
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
+
+          echo "Comparing $BASE_SHA..$HEAD_SHA"
 
           # Get list of changed and added files that are Bazel files (A=added, M=modified)
-          git diff --name-only --diff-filter=AM "$MERGE_BASE" "$HEAD_REF" | \
+          git diff --name-only --diff-filter=AM "$BASE_SHA" "$HEAD_SHA" | \
             grep -E '(^|/)((BUILD|WORKSPACE|MODULE)(\.bazel)?|.*\.bzl)$' > /tmp/bazel_files.txt || true
         else
           # For push events, compare with the previous commit
