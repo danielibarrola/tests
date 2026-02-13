@@ -1,0 +1,27 @@
+name: Bazel Format Check
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions: {}
+
+jobs:
+  buildifier-check:
+    name: Check Bazel Formatting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run buildifier check
+        uses: ./.github/actions/buildifier-check
+        with:
+          buildifier-version: 'latest'
