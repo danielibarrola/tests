@@ -1,0 +1,71 @@
+name: 'Buildifier Format Check'
+description: 'Checks if Bazel files are properly formatted using buildifier'
+
+inputs:
+  buildifier-version:
+    description: 'Version of buildifier to use'
+    required: false
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install buildifier
+      shell: bash
+      run: |
+        if [ "${{ inputs.buildifier-version }}" = "latest" ]; then
+          BUILDIFIER_VERSION=$(curl -s https://api.github.com/repos/bazelbuild/buildtools/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+        else
+          BUILDIFIER_VERSION="${{ inputs.buildifier-version }}"
+        fi
+
+        echo "Installing buildifier version ${BUILDIFIER_VERSION}"
+
+        # Detect OS and architecture
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+
+        # Map architecture names
+        if [ "$ARCH" = "x86_64" ]; then
+          ARCH="amd64"
+        elif [ "$ARCH" = "aarch64" ]; then
+          ARCH="arm64"
+        fi
+
+        # Download buildifier
+        DOWNLOAD_URL="https://github.com/bazelbuild/buildtools/releases/download/v${BUILDIFIER_VERSION}/buildifier-${OS}-${ARCH}"
+        curl -L -o /tmp/buildifier "${DOWNLOAD_URL}"
+        chmod +x /tmp/buildifier
+        sudo mv /tmp/buildifier /usr/local/bin/buildifier
+
+        buildifier --version
+
+    - name: Find Bazel files
+      shell: bash
+      run: |
+        echo "Finding Bazel files to check..."
+        find . \( -name "BUILD" -o -name "BUILD.bazel" -o -name "WORKSPACE" -o -name "WORKSPACE.bazel" -o -name "MODULE.bazel" -o -name "*.bzl" \) -type f > /tmp/bazel_files.txt
+        echo "Found $(wc -l < /tmp/bazel_files.txt) Bazel files"
+
+    - name: Check formatting with buildifier
+      shell: bash
+      run: |
+        echo "Checking Bazel file formatting..."
+        EXIT_CODE=0
+
+        while IFS= read -r file; do
+          if ! buildifier --mode=check --lint=warn "$file"; then
+            echo "❌ File needs formatting: $file"
+            EXIT_CODE=1
+          fi
+        done < /tmp/bazel_files.txt
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "✅ All Bazel files are properly formatted"
+        else
+          echo ""
+          echo "❌ Some files are not properly formatted"
+          echo "To fix formatting issues, run: buildifier --mode=fix <file>"
+          echo "Or to fix all files, run: find . \\( -name 'BUILD*' -o -name 'WORKSPACE*' -o -name '*.bzl' \\) -type f -exec buildifier {} \\;"
+          exit 1
+        fi
