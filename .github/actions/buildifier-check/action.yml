@@ -10,6 +10,12 @@ inputs:
 runs:
   using: 'composite'
   steps:
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Install buildifier
       shell: bash
       run: |
@@ -47,8 +53,20 @@ runs:
 
         # Determine the base ref to compare against
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          BASE_REF="${{ github.event.pull_request.base.sha }}"
-          HEAD_REF="${{ github.event.pull_request.head.sha }}"
+          # For PRs, use the merge base between the base branch and head
+          BASE_REF="origin/${{ github.event.pull_request.base.ref }}"
+          HEAD_REF="HEAD"
+
+          # Ensure we have the base branch
+          git fetch origin "${{ github.event.pull_request.base.ref }}"
+
+          # Use merge-base to find the common ancestor
+          MERGE_BASE=$(git merge-base "$BASE_REF" "$HEAD_REF")
+          echo "Comparing merge base $MERGE_BASE...HEAD"
+
+          # Get list of changed and added files that are Bazel files (A=added, M=modified)
+          git diff --name-only --diff-filter=AM "$MERGE_BASE" "$HEAD_REF" | \
+            grep -E '(^|/)((BUILD|WORKSPACE|MODULE)(\.bazel)?|.*\.bzl)$' > /tmp/bazel_files.txt || true
         else
           # For push events, compare with the previous commit
           if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
@@ -58,13 +76,13 @@ runs:
             BASE_REF="${{ github.event.before }}"
           fi
           HEAD_REF="${{ github.sha }}"
+
+          echo "Comparing $BASE_REF...$HEAD_REF"
+
+          # Get list of changed and added files that are Bazel files (A=added, M=modified)
+          git diff --name-only --diff-filter=AM "$BASE_REF" "$HEAD_REF" | \
+            grep -E '(^|/)((BUILD|WORKSPACE|MODULE)(\.bazel)?|.*\.bzl)$' > /tmp/bazel_files.txt || true
         fi
-
-        echo "Comparing $BASE_REF...$HEAD_REF"
-
-        # Get list of changed and added files that are Bazel files (A=added, M=modified)
-        git diff --name-only --diff-filter=AM "$BASE_REF" "$HEAD_REF" | \
-          grep -E '(^|/)((BUILD|WORKSPACE|MODULE)(\.bazel)?|.*\.bzl)$' > /tmp/bazel_files.txt || true
 
         if [ -s /tmp/bazel_files.txt ]; then
           echo "Found $(wc -l < /tmp/bazel_files.txt) changed Bazel files:"
